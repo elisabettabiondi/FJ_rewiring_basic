@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 # Make sure networkx, numpy, scipy, and matplotlib is installed. PyCX.pycxsimulator is not working on my laptop, so ignoring it.
 
 G = nx.fast_gnp_random_graph(n=20, p=0.3)
-threshold = 0.35 #admittable disagreement for not rewiring
+
 #W = np.matrix([[.220,.120,.360,.300],[.147,251,.344,.294],[0,0,1,0],[0.09,0.178,0.446,0.286]])
 #G = nx.from_numpy_matrix(W)
 
@@ -17,7 +17,7 @@ threshold = 0.35 #admittable disagreement for not rewiring
 
 # This is going to be our network of interactions: A random network with 20 nodes and density = 0.3 (we can change this), meaning that the probability that an edge exists between any given pair of nodes = 30%
 # I have not implemented the "emotional closeness" yet.
-def initialize():
+def initialize(susc):
     for i in G.nodes:
         G.nodes[i]['opinion'] = random.random()  # Opinion of an agent is a uniform random number between 0 to 1
         G.nodes[i]['initial_opinion'] = G.nodes[i]['opinion']  # Initial opinion
@@ -59,7 +59,7 @@ def observe():
     plt.show()
 
 
-def rewire():
+def rewire(threshold):
     global G
     global W
 
@@ -75,7 +75,7 @@ def rewire():
     W = calculate_w()
 
 
-def update_opinions():
+def update_opinions_synch():
     global G
     G1 = G #use G1 for building the new opinions
     for i in G1.nodes:
@@ -136,7 +136,13 @@ def update_opinions_asynch():
 
 # The above line of code throws error in my laptop, please uncomment it and check if it runs on yours!
 
-def run_sumulation(total_timestep, rewiring_timestep):
+def pdf(op):
+    hist, bins = np.histogram(op, bins=200, normed=True)
+    bin_centers = (bins[1:] + bins[:-1]) * 0.5
+    plt.plot(bin_centers, hist)
+
+
+def run_sumulation(total_timestep,p_rew,threshold, model):
     #opinions = []
     average_opinion = []
     sum_op_av = []
@@ -144,7 +150,7 @@ def run_sumulation(total_timestep, rewiring_timestep):
     time = []
     t = 0
     actions = ["rew", "upd"]
-    p_rew = 0 #define the rewiring probability
+    #p_rew = 0 #define the rewiring probability
     dist_actions = [p_rew, 1-p_rew]
 
     while t < total_timestep:
@@ -154,13 +160,16 @@ def run_sumulation(total_timestep, rewiring_timestep):
         #print(act)
         if act == ["upd"]:
             #print("updating")
-            r = update_opinions_asynch()
+            if model == "synch":
+                r = update_opinions_synch()
+            else:
+                r = update_opinions_asynch()
             if r == -1:
                 return -1, -1
 
         else:
-            print("rewiring")
-            rewire()
+            #print("rewiring")
+            rewire(threshold)
         #opinions.append([G.nodes[i]['opinion'] for i in G.nodes])
         #time.append(t)
 
@@ -169,6 +178,7 @@ def run_sumulation(total_timestep, rewiring_timestep):
         n = G.number_of_nodes()
         sum_op = [sum_op[i]+ G.nodes[i]['opinion'] for i in
                       G.nodes()]
+        pdf([sum_op[i]/(t+1) for i in G.nodes()])
         sum_op_av.append([sum_op[i]/(t+1) for i in G.nodes()])
         avg_op = sum([G.nodes[i]['opinion'] for i in
                       G.nodes()]) / n  # Calculating average opinion of all agents after each update
@@ -182,7 +192,7 @@ def run_sumulation(total_timestep, rewiring_timestep):
 
 def plot_avgOp_vs_time():
     initialize()
-    average_opinion, time, sum_op_av = run_sumulation(2000 ,3) # Get values over 50 timesteps
+    average_opinion, time, sum_op_av = run_sumulation(2000) # Get values over 50 timesteps
     plt.figure(figsize=(100, 5))
     #plt.plot(time, average_opinion, "ro-", markersize = 4)
     plt.plot(time, sum_op_av,  markersize=4)
@@ -193,4 +203,16 @@ def plot_avgOp_vs_time():
     plt.show()
 
 
-plot_avgOp_vs_time()  # This will output a plot showing how the average opinion of team members is changing over time.
+
+
+def main():
+    susc = #vector of susceptibility values
+    threshold =  #admittable disagreement for not rewiring
+    p_rew = #probability of rewiring
+    model = #synch or asynch model
+    initialize(susc)
+    average_opinion, time, sum_op_av = run_sumulation(2000)#(total_timestep,p_rew,threshold, model)
+    plot_avgOp_vs_time()  # This will output a plot showing how the average opinion of team members is changing over time.
+
+if __name__ == "__main__":
+    main()
