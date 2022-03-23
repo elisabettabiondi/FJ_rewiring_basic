@@ -4,11 +4,17 @@ import numpy as np
 #from scipy.stats import skewnorm
 import random
 import matplotlib.pyplot as plt
+from itertools import count
+import pickle
+
+
 
 #import PyCX.pycxsimulator
 # Make sure networkx, numpy, scipy, and matplotlib is installed. PyCX.pycxsimulator is not working on my laptop, so ignoring it.
 
 G = nx.fast_gnp_random_graph(n=20, p=0.3)
+nodes = G.nodes()
+
 
 #W = np.matrix([[.220,.120,.360,.300],[.147,251,.344,.294],[0,0,1,0],[0.09,0.178,0.446,0.286]])
 #G = nx.from_numpy_matrix(W)
@@ -17,11 +23,46 @@ G = nx.fast_gnp_random_graph(n=20, p=0.3)
 
 # This is going to be our network of interactions: A random network with 20 nodes and density = 0.3 (we can change this), meaning that the probability that an edge exists between any given pair of nodes = 30%
 # I have not implemented the "emotional closeness" yet.
+
+def calculate_w():
+    global G
+
+    W = nx.to_numpy_array(G)
+    row_sums = W.sum(axis=1)
+    W = W / row_sums[:, np.newaxis]
+
+    return W
+
+
+W = calculate_w()
+
+def assign_weights():
+    global G
+    global W
+
+    for i, j, w in G.edges(data=True):
+        w['weight'] = W[i, j]
+
+
 def initialize(susc):
+    global G
+    #l=[]
+    count=0
+    #with open("initial_opinions", "rb") as fp:  # Unpickling
+    #    inital_opinion = pickle.load(fp)
+    iniop = np.load('initial_opinions.npy', allow_pickle=True)
     for i in G.nodes:
-        G.nodes[i]['opinion'] = random.random()  # Opinion of an agent is a uniform random number between 0 to 1
+
+        #val = 2 * random.random()-1
+        #l.append(val)
+        G.nodes[i]['opinion'] = iniop[count]#val # Opinion of an agent is a uniform random number between -1 to 1
+
         G.nodes[i]['initial_opinion'] = G.nodes[i]['opinion']  # Initial opinion
         G.nodes[i]['susceptibility'] = 0.9 #random.random()   Susceptibility of an agent is a uniform random number between 0 to 1
+        count = count+1
+    assign_weights()
+    #np.save('initial_opinions.npy', l, allow_pickle=True)
+
     # G.nodes[0]['susceptibility'] = 0.78
     # G.nodes[1]['susceptibility'] = 0.785
     # G.nodes[2]['susceptibility'] = 0.
@@ -36,17 +77,11 @@ def initialize(susc):
     #     #G.nodes[i]['susceptibility'] = 0.5 #random.random()   Susceptibility of an agent is a uniform random number between 0 to 1
 
 
-def calculate_w():
-    global G
-
-    W = nx.to_numpy_array(G)
-    row_sums = W.sum(axis=1)
-    W = W / row_sums[:, np.newaxis]
-
-    return W
 
 
-W = calculate_w()
+
+
+
 
 
 def observe():
@@ -62,6 +97,7 @@ def observe():
 def rewire(threshold):
     global G
     global W
+    global nodes
 
     for i in G.nodes:
         for j in G.neighbors(i):
@@ -73,6 +109,8 @@ def rewire(threshold):
                 G.add_edge(i, j)
                 #print("added link (",i,",",i, j,")")
     W = calculate_w()
+    #G = nx.from_numpy_matrix(W)
+    #G.nodes = nodes
 
 
 def update_opinions_synch():
@@ -144,15 +182,17 @@ def pdf(op):
 
 def run_sumulation(total_timestep,p_rew,threshold, model):
     #opinions = []
-    average_opinion = []
-    sum_op_av = []
-    sum_op = np.zeros(len(G.nodes()))
-    time = []
+    n = G.number_of_nodes()
+    iniop = [G.nodes[i]['initial_opinion'] for i in G.nodes()]
+    average_opinion = [sum(iniop) / n]
+    sum_op_av = [iniop]
+    sum_op = [iniop]
+    time = [0]
     t = 0
     actions = ["rew", "upd"]
     #p_rew = 0 #define the rewiring probability
     dist_actions = [p_rew, 1-p_rew]
-    n = G.number_of_nodes()
+
 
     while t < total_timestep:
 
@@ -163,21 +203,23 @@ def run_sumulation(total_timestep,p_rew,threshold, model):
         if model == "synch":
             if act == ["upd"]:
                 r = update_opinions_synch()
+                if r == -1:
+                    return -1, -1
             else:
                 # print("rewiring")
                 rewire(threshold)
-            if r == -1:
-                return -1, -1
+
             sum_op_av.append([G.nodes[i]['opinion'] for i in
                       G.nodes()])
         else:
             if act == ["upd"]:
                 r = update_opinions_asynch()
+                if r == -1:
+                    return -1, -1
             else:
                 # print("rewiring")
                 rewire(threshold)
-            if r == -1:
-                return -1, -1
+
 
             sum_op = [sum_op[i] + G.nodes[i]['opinion'] for i in
                       G.nodes()]
@@ -196,33 +238,78 @@ def run_sumulation(total_timestep,p_rew,threshold, model):
     return average_opinion, time, sum_op_av
 
 
-def plot_avgOp_vs_time(time, sum_op_av,time_steps, model):
+def plot_avgOp_vs_time(time, sum_op_av,time_steps, model,threshold,p_rew,susc_val):
     #initialize()
     #average_opinion, time, sum_op_av = run_sumulation(2000) # Get values over 50 timesteps
-    plt.figure(figsize=(100, 5))
+    plt.figure(figsize=(10, 5))
     #plt.plot(time, average_opinion, "ro-", markersize = 4)
     plt.plot(time, sum_op_av,  markersize=4)
     plt.xlabel("Timestamp", fontsize=18, color = "black")
     if model== "asynch":
         plt.ylabel(u'z\u0305', fontsize=18, color = "black")
     else:
-        plt.ylabel("Opinions", fontsize=18, color="black")
-    plt.xticks(np.arange(0,time_steps,step=time_steps/20),fontsize=18, color = "black")
-    plt.yticks(fontsize=18, color = "black")
-    plt.show()
+        plt.ylabel("Opinions",  fontsize=18,color="black")
+    plt.xticks(np.arange(0,time_steps,step=round(time_steps/20)), color = "black")
+    plt.yticks(fontsize=18,color = "black")
+    plt.savefig('opinions_model' + model + '_thr' + str(threshold) + 'probRew_' +  str(p_rew) + 'susc' + str(susc_val) + '.png')
+    #plt.show()
 
 
 
 
 def main():
-    susc = 0.5 * np.ones(len(G.nodes)) #vector of susceptibility values
+    global G
+    global W
+    global nodes
+
+    susc_val = 0.5
+    susc = susc_val * np.ones(len(G.nodes)) #vector of susceptibility values
     threshold =  0.1 #admittable disagreement for not rewiring
-    p_rew = 0.5 #probability of rewiring
+    p_rew = 0.1 #probability of rewiring
     model = "synch" #synch or asynch model
     time_steps = 100
     initialize(susc)
-    average_opinion, time, sum_op_av = run_sumulation(time_steps,p_rew,threshold,model)#(total_timestep,p_rew,threshold, model)
-    plot_avgOp_vs_time(time, sum_op_av,time_steps,model)  # This will output a plot showing how the average opinion of team members is changing over time.
 
+
+    f = plt.figure()
+    # get unique groups
+
+    #G = nx.from_numpy_matrix(W)
+    #G.nodes() = nodes
+    widths = nx.get_edge_attributes(G, 'weight')
+    # nx.draw(G, ax=f.add_subplot(111), with_labels = True)
+    pos = nx.spring_layout(G)
+    colors = [G.nodes[n]['opinion'] for n in G.nodes()]
+    ec = nx.draw_networkx_edges(G, pos, alpha=0.6, width=list(widths.values()))
+    nc = nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_color=colors,
+                                label=G.nodes(), node_size=100, cmap=plt.cm.jet)
+    cbar = plt.colorbar(nc)
+    cbar.set_label('Opinions')
+
+    f.savefig('initialGraph_model' + model + '_thr' + str(threshold) + 'probRew_' +  str(p_rew) + 'susc' + str(susc_val) + '.png', bbox_inches='tight')
+    #plt.show()
+
+
+    average_opinion, time, sum_op_av = run_sumulation(time_steps,p_rew,threshold,model)#(total_timestep,p_rew,threshold, model)
+    plot_avgOp_vs_time(time, sum_op_av,time_steps,model,threshold,p_rew,susc_val)  # This will output a plot showing how the average opinion of team members is changing over time.
+
+    f = plt.figure()
+    # get unique groups
+    assign_weights()
+    widths = nx.get_edge_attributes(G, 'weight')
+    #nx.draw(G, ax=f.add_subplot(111), with_labels = True)
+    pos = nx.spring_layout(G)
+    colors = [G.nodes[n]['opinion'] for n in G.nodes()]
+    ec = nx.draw_networkx_edges(G, pos, alpha=0.6,width=list(widths.values()))
+    nc = nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_color=colors,
+                                label=G.nodes(), node_size=100, cmap=plt.cm.jet)
+    cbar = plt.colorbar(nc)
+    cbar.set_label('Opinions')
+
+    f.savefig('finalGraph_model' + model + '_thr' + str(threshold) + 'probRew_' +  str(p_rew) + 'susc' + str(susc_val) + '.png', bbox_inches='tight')
+    #plt.show()
+    #f1=nx.draw(G)
+    #f1.show()
+    #plt.savefig('ne.png')
 if __name__ == "__main__":
     main()
