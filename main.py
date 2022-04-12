@@ -118,15 +118,20 @@ def rewire(threshold, model,t):
     if model == "Asynch":
         disagreeList = [(i, j) for (i, j) in G.edges() if abs(G.nodes[i]['opinion'] - G.nodes[j]['opinion']) > threshold]
         if disagreeList!=[]:
-            (i,j)= random.choice(disagreeList)
-            G.remove_edge(i, j)
-            agreeList = [k for k in G.nodes() if k!= i and abs(G.nodes[k]['opinion']-G.nodes[i]['opinion']) <= threshold]
-            if agreeList !=[]:
-                j = random.choice(agreeList)
-                G.add_edge(i, j)
-            W = calculate_w()
-        #G = nx.from_numpy_matrix(W)
-        #G.nodes = nodes
+            while disagreeList!=[]:
+                (i,j)= random.choice(disagreeList)
+                #G.remove_edge(i, j)
+                agreeList = [k for k in G.nodes() if k!= i and abs(G.nodes[k]['opinion']-G.nodes[i]['opinion']) <= threshold]
+                if agreeList !=[]:
+                    G.remove_edge(i, j)
+                    j = random.choice(agreeList)
+                    G.add_edge(i, j)
+                    W = calculate_w()
+                    break
+                else:
+                    disagreeList.remove((i,j))
+            #G = nx.from_numpy_matrix(W)
+            #G.nodes = nodes
         else:
             if rewire0 == -1:
                 print("Time " + str(t) + " WARNING: agreement, not more rewiring")
@@ -289,7 +294,7 @@ def plot_avgOp_vs_time(time, sum_op_av,time_steps, model,threshold,p_rew,susc_va
         plt.xticks(np.arange(0, time_steps, step=round(time_steps / 10)), color="black")
     plt.yticks(fontsize=18,color = "black")
     plt.ylim([np.min(sum_op_av)-0.04,np.max(sum_op_av)+0.04])
-    plt.savefig('opinions_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '.png')
+    plt.savefig('opinions_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png')
     #plt.show()
 
 
@@ -302,9 +307,9 @@ def main():
 
     susc_val = 0.5
     susc = susc_val * np.ones(len(G.nodes)) #vector of susceptibility values
-    threshold =  0.5 #admittable disagreement for not rewiring
-    p_rew = 0.1 #probability of rewiring
-    model = "Synch" #synch or asynch model
+    threshold =  0.1 #admittable disagreement for not rewiring
+    p_rew = 0.9 #probability of rewiring
+    model = "Asynch" #synch or asynch model
     time_steps = 100 #set 10000 for Asy and 100 for Syn
     initialize(susc_val)
 
@@ -349,13 +354,13 @@ def main():
     cbar.set_label('Opinions')
 
     nx.draw_networkx_labels(G, pos, lab, font_color='w', font_size=8, font_family='Verdana')
-    f.savefig('finalGraph_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '.png', bbox_inches='tight')
+    f.savefig('finalGraph_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png', bbox_inches='tight')
     #plt.show()
     #f1=nx.draw(G)
     #f1.show()
     #plt.savefig('ne.png')
 
-    np.savetxt('final_opinion_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '.txt', sum_op_av[-1])
+    np.savetxt('final_opinion_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', sum_op_av[-1])
 
 if __name__ == "__main__":
     main()
