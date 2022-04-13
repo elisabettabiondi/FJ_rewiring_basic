@@ -141,14 +141,19 @@ def rewire(threshold, model,t):
         for i in G.nodes:
             disagreeList = [j for j in G.neighbors(i) if abs(G.nodes[i]['opinion'] - G.nodes[j]['opinion']) > threshold]
             if disagreeList!=[]:
-                j= random.choice(disagreeList)
-                G.remove_edge(i, j)
-                #print("removed link (",i,",", j,")")
-                agreeList = [k for k in G.nodes() if  k!= i and abs(G.nodes[k]['opinion']-G.nodes[i]['opinion']) <= threshold]
-                if agreeList != []:
-                    j = random.choice(agreeList)
-                    G.add_edge(i, j)
-                W = calculate_w()
+                while disagreeList!=[]:
+                    j= random.choice(disagreeList)
+                    #G.remove_edge(i, j)
+                    #print("removed link (",i,",", j,")")
+                    agreeList = [k for k in G.nodes() if  k!= i and abs(G.nodes[k]['opinion']-G.nodes[i]['opinion']) <= threshold]
+                    if agreeList != []:
+                        G.remove_edge(i, j)
+                        j = random.choice(agreeList)
+                        G.add_edge(i, j)
+                        W = calculate_w()
+                        break
+                    else:
+                        disagreeList.remove((i, j))
 
 
 
@@ -307,9 +312,9 @@ def main():
 
     susc_val = 0.5
     susc = susc_val * np.ones(len(G.nodes)) #vector of susceptibility values
-    threshold =  0.1 #admittable disagreement for not rewiring
-    p_rew = 0.9 #probability of rewiring
-    model = "Asynch" #synch or asynch model
+    threshold =  0.5 #admittable disagreement for not rewiring
+    p_rew = 0.1 #probability of rewiring
+    model = "Synch" #synch or asynch model
     time_steps = 100 #set 10000 for Asy and 100 for Syn
     initialize(susc_val)
 
