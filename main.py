@@ -29,7 +29,7 @@ G = nx.from_numpy_matrix(A)
 
 def calculate_w():
     global G
-
+    global W
     W = nx.to_numpy_array(G)
     row_sums = W.sum(axis=1)
     for r in range(0,len(row_sums)-1):
@@ -55,7 +55,8 @@ def initialize(susc_val):
     count=0
 
     #iniop = np.load('initial_opinions.npy', allow_pickle=True)
-    iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/polarizing_vector_susc' + str(susc_val) +'.txt')
+    #iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/polarizing_vector_susc' + str(susc_val) +'.txt')
+    iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/initial_opinion_random.txt')
     for i in G.nodes:
 
         #val = 2 * random.random()-1
@@ -312,10 +313,10 @@ def main():
 
     susc_val = 0.5
     susc = susc_val * np.ones(len(G.nodes)) #vector of susceptibility values
-    threshold =  0.5 #admittable disagreement for not rewiring
+    threshold =  0.4 #admittable disagreement for not rewiring
     p_rew = 0.1 #probability of rewiring
-    model = "Synch" #synch or asynch model
-    time_steps = 100 #set 10000 for Asy and 100 for Syn
+    model = "Asynch" #synch or asynch model
+    time_steps = 10000 #set 10000 for Asy and 100 for Syn
     initialize(susc_val)
 
     #I  have commented the following lines because the initial graph is the same for every simulation
@@ -359,13 +360,14 @@ def main():
     cbar.set_label('Opinions')
 
     nx.draw_networkx_labels(G, pos, lab, font_color='w', font_size=8, font_family='Verdana')
-    f.savefig('finalGraph_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png', bbox_inches='tight')
+    f.savefig('initRand_finalGraph_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png', bbox_inches='tight')
     #plt.show()
     #f1=nx.draw(G)
     #f1.show()
     #plt.savefig('ne.png')
 
-    np.savetxt('final_opinion_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', sum_op_av[-1])
+    np.savetxt('initRand_final_opinion_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', sum_op_av[-1])
+    np.savetxt('initRand_weighted_matrix_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', W)
 
 if __name__ == "__main__":
     main()
