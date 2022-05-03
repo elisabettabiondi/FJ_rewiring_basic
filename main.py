@@ -94,7 +94,7 @@ def observe():
     plt.cla()  # Clears the current plot
     nx.draw(G, cmap=plt.cm.Spectral, vmin=0, vmax=1,
             node_color=[G.nodes[i]['state'] for i in G.nodes],
-            edge_cmap=plt.cm.binary, edge_vmin=0, edge_vmax=1,
+            edge_cmap=plt.cm.binary, edge_vmin=-1, edge_vmax=1,
             # edge_color = [G.edges[i, j]['weight'] for i, j in G.edges],
             pos=G.pos)
     plt.show()
@@ -115,17 +115,21 @@ def rewire(threshold, model,t):
     #             G.add_edge(i, j)
     #             #print("added link (",i,",",i, j,")")
 
-
+    number_edges = G.number_of_edges()
     if model == "Asynch":
         disagreeList = [(i, j) for (i, j) in G.edges() if abs(G.nodes[i]['opinion'] - G.nodes[j]['opinion']) > threshold]
         if disagreeList!=[]:
             while disagreeList!=[]:
                 (i,j)= random.choice(disagreeList)
                 #G.remove_edge(i, j)
-                agreeList = [k for k in G.nodes() if k!= i and abs(G.nodes[k]['opinion']-G.nodes[i]['opinion']) <= threshold]
+                agreeList = [k for k in G.nodes() if k!= i and (i,k) not in G.edges and abs(G.nodes[k]['opinion']-G.nodes[i]['opinion']) <= threshold]
                 if agreeList !=[]:
                     G.remove_edge(i, j)
+                    if G.number_of_edges() != number_edges-1:
+                        print("some problems here")
                     j = random.choice(agreeList)
+                    if (i,j) in G.edges():
+                        print("selected an already existing edge")
                     G.add_edge(i, j)
                     W = calculate_w()
                     break
@@ -146,7 +150,7 @@ def rewire(threshold, model,t):
                     j= random.choice(disagreeList)
                     #G.remove_edge(i, j)
                     #print("removed link (",i,",", j,")")
-                    agreeList = [k for k in G.nodes() if  k!= i and abs(G.nodes[k]['opinion']-G.nodes[i]['opinion']) <= threshold]
+                    agreeList = [k for k in G.nodes() if  k!= i and (i,k) not in G.edges and abs(G.nodes[k]['opinion']-G.nodes[i]['opinion']) <= threshold]
                     if agreeList != []:
                         G.remove_edge(i, j)
                         j = random.choice(agreeList)
@@ -155,6 +159,8 @@ def rewire(threshold, model,t):
                         break
                     else:
                         disagreeList.remove((i, j))
+    if number_edges != G.number_of_edges():
+        print("Problem here")
 
 
 
@@ -300,7 +306,7 @@ def plot_avgOp_vs_time(time, sum_op_av,time_steps, model,threshold,p_rew,susc_va
         plt.xticks(np.arange(0, time_steps, step=round(time_steps / 10)), color="black")
     plt.yticks(fontsize=18,color = "black")
     plt.ylim([np.min(sum_op_av)-0.04,np.max(sum_op_av)+0.04])
-    plt.savefig('opinions_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png')
+    plt.savefig('initRand_opinions_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png')
     #plt.show()
 
 
@@ -313,10 +319,10 @@ def main():
 
     susc_val = 0.5
     susc = susc_val * np.ones(len(G.nodes)) #vector of susceptibility values
-    threshold =  0.4 #admittable disagreement for not rewiring
-    p_rew = 0.1 #probability of rewiring
+    threshold =  0.2 #admittable disagreement for not rewiring
+    p_rew = 0.9 #probability of rewiring
     model = "Asynch" #synch or asynch model
-    time_steps = 10000 #set 10000 for Asy and 100 for Syn
+    time_steps = 150000 #set 10000 for Asy and 100 for Syn
     initialize(susc_val)
 
     #I  have commented the following lines because the initial graph is the same for every simulation
@@ -331,7 +337,7 @@ def main():
     # colors = [G.nodes[n]['opinion'] for n in G.nodes()]
     # ec = nx.draw_networkx_edges(G, pos, alpha=0.6, width=list(widths.values()))
     # nc = nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_color=colors,
-    #                             label=G.nodes(), node_size=100, cmap=plt.cm.jet, vmin =0, vmax =1)
+    #                             label=G.nodes(), node_size=100, cmap=plt.cm.jet, vmin =-1, vmax =1)
     lab = {}
     for i in G.nodes():
         lab[i] = i
@@ -339,8 +345,8 @@ def main():
     # cbar = plt.colorbar(nc)
     # cbar.set_label('Opinions')
     #
-    # f.savefig('initialGraph_model' + model + '_thr' + str(threshold) + 'probRew_' +  str(p_rew) + 'susc' + str(susc_val) + '.png', bbox_inches='tight')
-    # #plt.show()
+    # f.savefig('initRand_initialGraph_model' + model + '_thr' + str(threshold) + 'probRew_' +  str(p_rew) + 'susc' + str(susc_val) + '.png', bbox_inches='tight')
+    # # #plt.show()
 
 
     average_opinion, time, sum_op_av = run_sumulation(time_steps,p_rew,threshold,model)#(total_timestep,p_rew,threshold, model)
@@ -355,7 +361,7 @@ def main():
     colors = [G.nodes[n]['opinion'] for n in G.nodes()]
     ec = nx.draw_networkx_edges(G, pos, alpha=0.6,width=list(widths.values()))
     nc = nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_color=colors,
-                                label=G.nodes(), node_size=100, cmap=plt.cm.jet,vmin=0,vmax=1)
+                                label=G.nodes(), node_size=100, cmap=plt.cm.jet,vmin=-1,vmax=1)
     cbar = plt.colorbar(nc)
     cbar.set_label('Opinions')
 
