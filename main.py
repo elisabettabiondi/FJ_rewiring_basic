@@ -6,6 +6,10 @@ import random
 import matplotlib.pyplot as plt
 from itertools import count
 import pickle
+from scipy.stats import skew, kurtosis
+import math
+import csv
+
 
 
 
@@ -13,8 +17,9 @@ import pickle
 # Make sure networkx, numpy, scipy, and matplotlib is installed. PyCX.pycxsimulator is not working on my laptop, so ignoring it.
 
 
-A = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/random_graph_20_0.3.txt')
-G = nx.from_numpy_matrix(A)
+
+
+
 #G = nx.fast_gnp_random_graph(n=20, p=0.3)
 #nodes = G.nodes()
 
@@ -39,7 +44,7 @@ def calculate_w():
     return W
 
 
-W = calculate_w()
+
 
 def assign_weights():
     global G
@@ -51,12 +56,19 @@ def assign_weights():
 
 def initialize(susc_val):
     global G
+    global initialSetting
+    global prefix
     #l=[]
     count=0
 
     #iniop = np.load('initial_opinions.npy', allow_pickle=True)
     #iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/polarizing_vector_susc' + str(susc_val) +'.txt')
-    iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/initial_opinion_random.txt')
+    if initialSetting == "random":
+        prefix ="initRand"
+        iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/initial_opinion_random.txt')
+    else:
+        prefix="initRandBlock"
+        iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/initial_opinion_randomBlocks.txt')
     for i in G.nodes:
 
         #val = 2 * random.random()-1
@@ -231,7 +243,7 @@ def pdf(op):
     plt.plot(bin_centers, hist)
 
 
-def run_sumulation(total_timestep,p_rew,threshold, model):
+def run_sumulation(total_timestep,p_rew,threshold, model, susc_val):
     #opinions = []
     n = G.number_of_nodes()
     iniop = [G.nodes[i]['initial_opinion'] for i in G.nodes()]
@@ -243,7 +255,10 @@ def run_sumulation(total_timestep,p_rew,threshold, model):
     actions = ["rew", "upd"]
     #p_rew = 0 #define the rewiring probability
     dist_actions = [p_rew, 1-p_rew]
-
+    polarization_output = open('initRand_polarizationRes_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.csv', "w", encoding="utf8")
+    pol_writer = csv.writer(polarization_output)
+    header = ['bimodality_coefficient','homogeneity','nai','bimodality_coefficient_clean']
+    pol_writer.writerow(header)
 
     while t < total_timestep:
 
@@ -260,8 +275,10 @@ def run_sumulation(total_timestep,p_rew,threshold, model):
                 # print("rewiring")
                 rewire(threshold,model,t)
 
-            sum_op_av.append([G.nodes[i]['opinion'] for i in
-                      G.nodes()])
+            op = [G.nodes[i]['opinion'] for i in
+                      G.nodes()]
+            sum_op_av.append(op)
+            row = [bimodality_coefficient(op), homogeneity(t,op), nai(t,op),bimodality_coefficient(remove_outliers(op))]
         else:
             if act == ["upd"]:
                 r = update_opinions_asynch()
@@ -275,10 +292,12 @@ def run_sumulation(total_timestep,p_rew,threshold, model):
             sum_op = [sum_op[i] + G.nodes[i]['opinion'] for i in
                       G.nodes()]
             # pdf([sum_op[i]/(t+1) for i in G.nodes()])
-            sum_op_av.append([sum_op[i] / (t + 1) for i in G.nodes()])
+            op = [sum_op[i] / (t + 1) for i in G.nodes()]
+            sum_op_av.append(op)
+            row = [bimodality_coefficient(op), homogeneity(t, op), nai(t, op),bimodality_coefficient(remove_outliers(op))]
 
 
-
+        pol_writer.writerow(row)
 
         avg_op = sum([G.nodes[i]['opinion'] for i in
                       G.nodes()]) / n  # Calculating average opinion of all agents after each update
@@ -286,10 +305,96 @@ def run_sumulation(total_timestep,p_rew,threshold, model):
         time.append(t)
         t += 1
 
+    polarization_output.close()
     return average_opinion, time, sum_op_av
 
 
+def remove_outliers(vec):
+
+    q75, q25 = np.percentile(vec, [75, 25])
+    intr_qr = q75 - q25
+
+    max = q75 + (1.5 * intr_qr)
+    min = q25 - (1.5 * intr_qr)
+
+
+    vec = [x for x in vec if x>=min and x<=max]
+    return(vec)
+
+
+
+def bimodality_coefficient(opinionVector):
+    global G
+
+    #opinionVector= np.zeros(G.number_of_nodes())
+    #for i in G.nodes:
+    #    opinionVector[i] = G.nodes[i]['opinion']
+    m3 = skew(opinionVector, axis=0, bias=False)
+    m4 = kurtosis(opinionVector, axis=0, bias=False)
+    n = len(opinionVector)
+    b = (m3 ** 2 + 1) / (m4 + 3 * ((n - 1) ** 2 / ((n - 2) * (n - 3))))
+    return b
+
+def homogeneity(t,opinionVector):
+    global G
+    global W
+
+    A = np.where(W>0, 1, 0)
+    n=G.number_of_nodes()
+    #opinionVector = np.zeros(n)
+    #for i in G.nodes:
+    #    opinionVector[i] = G.nodes[i]['opinion']
+    mean = sum(opinionVector)/n
+    if t == 0:
+        hom0 = 2/3
+    else:
+        if mean <= 1/3:
+            slope = 1.5 * mean
+            hom0 = 2/15*(5+2*slope** 2)
+        else:
+            slope =2/9 * (1/(1-mean)**2)
+            hom0 = 1-( 2* math.sqrt(2)/ (15* math.sqrt(slope) ))
+    h =0
+    for i in range(n) :
+        Asum = np.array(A).sum(axis=1)
+        if Asum[i] != 0:
+            h = h+(1-1/Asum[i] * sum(abs(np.array(opinionVector) - np.array([opinionVector[i]]*n))*A[:][i])/2)
+        else:
+            h=h+1
+    h = h/n
+    return ((h-hom0)/(1-hom0))
+
+
+def nai(t,opinionVector):
+    global G
+    global W
+
+
+    n=G.number_of_nodes()
+    #opinionVector = np.zeros(n)
+    #for i in G.nodes:
+    #    opinionVector[i] = G.nodes[i]['opinion']
+    mean = sum(opinionVector)/n
+    if t == 0:
+        nai0 = 2/3
+    else:
+        if mean <= 1/3:
+            slope = 1.5 * mean
+            nai0 = 5/6+2/9*slope** 2
+        else:
+            slope =2/9 * (1/(1-mean)**2)
+            nai0 = 1-( 1/ 36* slope )
+    h =0
+    for i in range(n) :
+        h = h+ (1 - sum( (np.array(opinionVector) - np.array([opinionVector[i]]*n))**2  * W[:][i])/4)
+    h = h/n
+    return ((h-nai0)/(1-nai0))
+
+
 def plot_avgOp_vs_time(time, sum_op_av,time_steps, model,threshold,p_rew,susc_val):
+    global graph
+    global prefix
+
     #initialize()
     #average_opinion, time, sum_op_av = run_sumulation(2000) # Get values over 50 timesteps
     plt.figure(figsize=(10, 5))
@@ -306,7 +411,12 @@ def plot_avgOp_vs_time(time, sum_op_av,time_steps, model,threshold,p_rew,susc_va
         plt.xticks(np.arange(0, time_steps, step=round(time_steps / 10)), color="black")
     plt.yticks(fontsize=18,color = "black")
     plt.ylim([np.min(sum_op_av)-0.04,np.max(sum_op_av)+0.04])
-    plt.savefig('initRand_opinions_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png')
+    if graph == "Block":
+        plt.savefig(
+            './results block model/'+ prefix +'_opinions_model' + model + '_thr' + str(threshold) + '_probRew' + str(p_rew) + '_susc' + str(
+                susc_val) + '_2.png')
+    else:
+        plt.savefig('initRand_opinions_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png')
     #plt.show()
 
 
@@ -316,13 +426,30 @@ def main():
     global G
     global W
     global nodes
+    global graph
+    global prefix
+    global initialSetting
+
+    graph = "nonBlock"
+
+    # HERE WE HAVE TO IMPORT THE INITIAL GRAPH:
+
+    if graph == "Block":
+        A = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/random_block_20_0.4_0.6_0.06.txt')
+    else:
+        A = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/random_graph_20_0.3.txt')
+
+    G = nx.from_numpy_matrix(A)
+    W = calculate_w()
+
+    initialSetting = "random"#"random" or "randomBlock"
 
     susc_val = 0.5
     susc = susc_val * np.ones(len(G.nodes)) #vector of susceptibility values
-    threshold =  0.2 #admittable disagreement for not rewiring
-    p_rew = 0.9 #probability of rewiring
+    threshold =  0 #admittable disagreement for not rewiring
+    p_rew = 0 #probability of rewiring
     model = "Asynch" #synch or asynch model
-    time_steps = 150000 #set 10000 for Asy and 100 for Syn
+    time_steps = 10000 #set 10000 for Asy and 100 for Syn
     initialize(susc_val)
 
     #I  have commented the following lines because the initial graph is the same for every simulation
@@ -338,18 +465,22 @@ def main():
     # ec = nx.draw_networkx_edges(G, pos, alpha=0.6, width=list(widths.values()))
     # nc = nx.draw_networkx_nodes(G, pos, nodelist=G.nodes(), node_color=colors,
     #                             label=G.nodes(), node_size=100, cmap=plt.cm.jet, vmin =-1, vmax =1)
+
     lab = {}
     for i in G.nodes():
         lab[i] = i
+
     # nx.draw_networkx_labels(G,pos ,lab, font_color='w', font_size=8, font_family='Verdana')
     # cbar = plt.colorbar(nc)
     # cbar.set_label('Opinions')
-    #
-    # f.savefig('initRand_initialGraph_model' + model + '_thr' + str(threshold) + 'probRew_' +  str(p_rew) + 'susc' + str(susc_val) + '.png', bbox_inches='tight')
+    # if graph == "Block":
+    #   f.savefig('./results block model/' + prefix +'_initialGraph_model' + model + '_thr' + str(threshold) + 'probRew_' +  str(p_rew) + 'susc' + str(susc_val) + '.png', bbox_inches='tight')
+    # else:
+    #   f.savefig('initRand_initialGraph_model' + model + '_thr' + str(threshold) + 'probRew_' +  str(p_rew) + 'susc' + str(susc_val) + '.png', bbox_inches='tight')
     # # #plt.show()
 
 
-    average_opinion, time, sum_op_av = run_sumulation(time_steps,p_rew,threshold,model)#(total_timestep,p_rew,threshold, model)
+    average_opinion, time, sum_op_av = run_sumulation(time_steps,p_rew,threshold,model, susc_val)#(total_timestep,p_rew,threshold, model)
     plot_avgOp_vs_time(time, sum_op_av,time_steps,model,threshold,p_rew,susc_val)  # This will output a plot showing how the average opinion of team members is changing over time.
 
     f = plt.figure()
@@ -366,14 +497,23 @@ def main():
     cbar.set_label('Opinions')
 
     nx.draw_networkx_labels(G, pos, lab, font_color='w', font_size=8, font_family='Verdana')
-    f.savefig('initRand_finalGraph_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png', bbox_inches='tight')
+    if graph == "Block":
+        f.savefig(
+            './results block model/'+prefix+'_finalGraph_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png', bbox_inches='tight')
+    else:
+        f.savefig('initRand_finalGraph_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.png', bbox_inches='tight')
     #plt.show()
     #f1=nx.draw(G)
     #f1.show()
     #plt.savefig('ne.png')
-
-    np.savetxt('initRand_final_opinion_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', sum_op_av[-1])
-    np.savetxt('initRand_weighted_matrix_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', W)
+    if graph == "Block":
+        np.savetxt(
+            './results block model/'+prefix+'_final_opinion_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', sum_op_av[-1])
+        np.savetxt(
+            './results block model/'+prefix+'_weighted_matrix_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', W)
+    else:
+        np.savetxt('initRand_final_opinion_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', sum_op_av[-1])
+        np.savetxt('initRand_weighted_matrix_model' + model + '_thr' + str(threshold) + '_probRew' +  str(p_rew) + '_susc' + str(susc_val) + '_2.txt', W)
 
 if __name__ == "__main__":
     main()
