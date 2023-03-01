@@ -40,16 +40,16 @@ def initialize(susc_val):
 
     if initialSetting == "random":
         prefix ="initRand"
-        iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/initial_opinion_random.txt')
+        iniop = np.loadtxt('initial_opinion_random.txt')
     else:
         prefix="initRandBlock"
-        iniop = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/initial_opinion_randomBlocks.txt')
+        iniop = np.loadtxt('initial_opinion_randomBlocks.txt')
     for i in G.nodes:
 
-        G.nodes[i]['opinion'] = iniop[count]#val # Opinion of an agent is a uniform random number between -1 to 1
+        G.nodes[i]['opinion'] = iniop[count]# Opinion of an agent is a uniform random number between -1 to 1
 
         G.nodes[i]['initial_opinion'] = G.nodes[i]['opinion']  # Initial opinion
-        G.nodes[i]['susceptibility'] = 0.9 #random.random()   Susceptibility of an agent is a uniform random number between 0 to 1
+        G.nodes[i]['susceptibility'] = susc_val
         count = count+1
     assign_weights()
 
@@ -365,9 +365,9 @@ def main():
     graph = "nonBlock" #this is a label to identify if the network considered is SBM or not
 
     if graph == "Block":
-        A = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/random_block_20_0.4_0.6_0.06.txt')
+        A = np.loadtxt('random_block_20_0.4_0.6_0.06.txt')
     else:
-        A = np.loadtxt('/Users/elisabetta/Documents/CEU-IIT/work/random_graph_20_0.3.txt')
+        A = np.loadtxt('random_graph_20_0.3.txt')
 
     G = nx.from_numpy_matrix(A) # create the graph from the adjacency matrix
     W = calculate_w() # generate the weighted adjacency matrix
