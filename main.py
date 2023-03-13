@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import skew, kurtosis
 import math
 import csv
-#todo: rifare tutto tau
 
 
 
